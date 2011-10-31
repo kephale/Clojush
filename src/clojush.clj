@@ -2043,6 +2043,18 @@ example."
                  targets
                  outputs))))))
 
+(defn replacement
+  "Decide whether a child program should replace the parent program. This function
+implements a Pareto dominance check. The child replaces the parent if it outperforms
+the parent in at least 1 dimension of error."
+  [parent child rand-gen error-function]
+  (binding [maintain-histories false];; We know evaluate-individual will be called once more on the child if it is chosen for replacement
+    (let [child (evaluate-individual child error-function rand-gen)]
+      (if (reduce #(and %1 %2)
+                  (map > (:errors parent) (:errors child)));; Only keep a parent if it dominates the child
+        parent
+        child))))
+
 (defn pushgp
   "The top-level routine of pushgp."
   [& {:keys [error-function error-threshold population-size max-points atom-generators max-generations
@@ -2156,8 +2168,11 @@ example."
                         gaussian-mutation-per-number-mutation-probability gaussian-mutation-standard-deviation)))
                   (apply await child-agents) ;; SYNCHRONIZE
                   (printf "\nInstalling next generation...") (flush)
+                  #_(dotimes [i population-size]
+                      (send (nth pop-agents i) (fn [av] (deref (nth child-agents i)))))
                   (dotimes [i population-size]
-                    (send (nth pop-agents i) (fn [av] (deref (nth child-agents i)))))
+                    (send (nth pop-agents i)
+                          replacement (deref (nth child-agents i)) (nth rand-gens i) error-function))
                   (apply await pop-agents) ;; SYNCHRONIZE
                   (recur (inc generation))))))))))
 
