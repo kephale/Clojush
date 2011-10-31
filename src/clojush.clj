@@ -2051,7 +2051,7 @@ the parent in at least 1 dimension of error."
   (binding [maintain-histories false];; We know evaluate-individual will be called once more on the child if it is chosen for replacement
     (let [child (evaluate-individual child error-function rand-gen)]
       (if (reduce #(and %1 %2)
-                  (map > (:errors parent) (:errors child)));; Only keep a parent if it dominates the child
+                  (map < (:errors parent) (:errors child)));; Only keep a parent if it dominates the child
         parent
         child))))
 
