@@ -218,8 +218,8 @@
 (pushgp
   :error-function (lawnmower-fitness 8 8 100)
   :atom-generators (list 'left 'mow 'v8a 'frog (fn [] [(rand-int 8) (rand-int 8)])
-                     (tag-instruction-erc [:exec] 1000)
-                     (tagged-instruction-erc 1000))
+                     (tag-instruction-erc [:exec])
+                     (tagged-instruction-erc))
   :mutation-probability 0.3
   :crossover-probability 0.3
   :simplification-probability 0.3

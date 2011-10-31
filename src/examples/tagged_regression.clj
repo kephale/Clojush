@@ -36,7 +36,7 @@
                      'integer_mult
                      'integer_add
                      'integer_sub
-                     (tag-instruction-erc [:integer :exec] 100)
-                     (untag-instruction-erc 100)
-                     (tagged-instruction-erc 100))
+                     (tag-instruction-erc [:integer :exec])
+                     (untag-instruction-erc)
+                     (tagged-instruction-erc))
 	 :tournament-size 3)

@@ -41,9 +41,9 @@
                      '(integer_add integer_sub integer_mult integer_div)
                      (list 
                        (fn [] (- (rand-int 21) 10))
-                       (tag-instruction-erc [:exec :integer] 1000) ;; added for tagged version
+                       (tag-instruction-erc [:exec :integer]) ;; added for tagged version
                        ;(untag-instruction-erc 1000) ;; added for tagged version
-                       (tagged-instruction-erc 1000) ;; added for tagged version
+                       (tagged-instruction-erc) ;; added for tagged version
                        'in))
   :mutation-probability 0.3
   :crossover-probability 0.3

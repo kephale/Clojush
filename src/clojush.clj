@@ -55,11 +55,15 @@
 (def global-max-points-in-program (atom 100))
 (def global-evalpush-limit (atom 150))
 (def global-evalpush-time-limit (atom 0)) ;; in nanoseconds, 0 => no time limit
+(def global-reuse-errors (atom true))
+
 (def global-node-selection-method (atom :unbiased))
 (def global-node-selection-leaf-probability (atom 0.1))
 (def global-node-selection-tournament-size (atom 2))
+
+(def global-tag-limit (atom 1000))
+(def global-use-indirect-tagging (atom false))
 (def global-pop-when-tagging (atom true))
-(def global-reuse-errors (atom true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; random code generator
@@ -1494,6 +1498,13 @@ acting as a no-op if the movement would produce an error."
       (.startsWith (name i) "tag")
       (.startsWith (name i) "untag"))))
 
+(defn indirect-tag?
+  "Predicate to check if a tag is indirect."
+  [tag]
+  (neg? tag))
+
+(def handle-indirection nil)
+
 (defn closest-association
   "Returns the key-val pair for the closest match to the given tag
 in the given state."
@@ -1503,6 +1514,15 @@ in the given state."
           (<= tag (ffirst associations)))
       (first associations)
       (recur (rest associations)))))
+
+(def handle-indirection
+;;  "Convert an indirect tag into a direct tag."
+  (fn handle-indirection
+    [tag state]
+    (let [actual-tag (math/abs tag)
+          tagged-value (closest-association actual-tag state)]    
+      (or (when tagged-value (mod (hash tagged-value) @global-tag-limit))
+          0)))); We can return an arbitrary tag because at this point we know the tag space is empty. closest-association will handle the exception.
 
 (defn handle-tag-instruction
   "Executes the tag instruction i in the state. Tag instructions take one of
@@ -1552,33 +1572,41 @@ the following forms:
 (defn tag-instruction-erc
   "Returns a function which, when called on no arguments, returns a symbol of the form
 tag_<type>_<number> where type is one of the specified types and number is in the range 
-from 0 to the specified limit (exclusive)."
-  [types limit]
+from 0 to the global tag limit (exclusive)."
+  [types]
   (fn [] (symbol (str "tag_"
                    (name (rand-nth types))
                    "_"
-                   (str (rand-int limit))))))
+                   (str (if @global-use-indirect-tagging
+                          (- (rand-int (* 2 @global-tag-limit)) @global-tag-limit)
+                          @global-tag-limit))))))
 
 (defn untag-instruction-erc
   "Returns a function which, when called on no arguments, returns a symbol of the form
 untag_<number> where number is in the range from 0 to the specified limit (exclusive)."
-  [limit]
+  []
   (fn [] (symbol (str "untag_"
-                   (str (rand-int limit))))))
+                   (str (if @global-use-indirect-tagging
+                          (- (rand-int (* 2 @global-tag-limit)) @global-tag-limit)
+                          @global-tag-limit))))))
 
 (defn tagged-instruction-erc
   "Returns a function which, when called on no arguments, returns a symbol of the form
 tagged_<number> where number is in the range from 0 to the specified limit (exclusive)."
-  [limit]
+  []
   (fn [] (symbol (str "tagged_"
-                   (str (rand-int limit))))))
+                   (str (if @global-use-indirect-tagging
+                          (- (rand-int (* 2 @global-tag-limit)) @global-tag-limit)
+                          @global-tag-limit))))))
 
 (defn tagged-code-instruction-erc
   "Returns a function which, when called on no arguments, returns a symbol of the form
 tagged_code_<number> where number is in the range from 0 to the specified limit (exclusive)."
-  [limit]
+  []
   (fn [] (symbol (str "tagged_code_"
-                   (str (rand-int limit))))))
+                   (str (if @global-use-indirect-tagging
+                          (- (rand-int (* 2 @global-tag-limit)) @global-tag-limit)
+                          @global-tag-limit))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; tagged-code macros
@@ -2064,7 +2092,7 @@ the parent in at least 1 dimension of error."
              evalpush-limit evalpush-time-limit node-selection-method node-selection-leaf-probability
              node-selection-tournament-size pop-when-tagging gaussian-mutation-probability 
              gaussian-mutation-per-number-mutation-probability gaussian-mutation-standard-deviation
-	     reuse-errors problem-specific-report]
+	     reuse-errors problem-specific-report use-indirect-tagging tag-limit]
       :or {error-function (fn [p] '(0)) ;; pgm -> list of errors (1 per case)
            error-threshold 0
            population-size 1000
@@ -2096,6 +2124,8 @@ the parent in at least 1 dimension of error."
            gaussian-mutation-standard-deviation 0.1
 	   reuse-errors true
 	   problem-specific-report default-problem-specific-report
+           use-indirect-tagging false
+           tag-limit 1000
            }}]
   ;; set globals from parameters
   (reset! global-atom-generators atom-generators)
@@ -2107,6 +2137,8 @@ the parent in at least 1 dimension of error."
   (reset! global-node-selection-tournament-size node-selection-tournament-size)
   (reset! global-pop-when-tagging pop-when-tagging)
   (reset! global-reuse-errors reuse-errors)
+  (reset! global-use-indirect-tagging use-indirect-tagging)
+  (reset! global-tag-limit tag-limit)
   (printf "\nStarting PushGP run.\n\n") (flush)
   (print-params 
     (error-function error-threshold population-size max-points atom-generators max-generations 
@@ -2116,7 +2148,7 @@ the parent in at least 1 dimension of error."
       tournament-size report-simplifications final-report-simplifications
       trivial-geography-radius decimation-ratio decimation-tournament-size evalpush-limit
       evalpush-time-limit node-selection-method node-selection-tournament-size
-      node-selection-leaf-probability pop-when-tagging reuse-errors
+      node-selection-leaf-probability pop-when-tagging reuse-errors use-indirect-tagging
       ))
   (printf "\nGenerating initial population...\n") (flush)
   (let [pop-agents (vec (doall (for [_ (range population-size)] 
