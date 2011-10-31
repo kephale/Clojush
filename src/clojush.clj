@@ -1519,10 +1519,12 @@ in the given state."
 ;;  "Convert an indirect tag into a direct tag."
   (fn handle-indirection
     [tag state]
-    (let [actual-tag (math/abs tag)
-          tagged-value (closest-association actual-tag state)]    
-      (or (when tagged-value (mod (hash tagged-value) @global-tag-limit))
-          0)))); We can return an arbitrary tag because at this point we know the tag space is empty. closest-association will handle the exception.
+    (if-not (indirect-tag? tag)
+      tag
+      (let [actual-tag (math/abs tag)
+            tagged-value (closest-association actual-tag state)]    
+        (or (when tagged-value (mod (hash tagged-value) @global-tag-limit))
+            0))))); We can return an arbitrary tag because at this point we know the tag space is empty. closest-association will handle the exception.
 
 (defn handle-tag-instruction
   "Executes the tag instruction i in the state. Tag instructions take one of
@@ -1545,7 +1547,7 @@ the following forms:
       ;; if it's of the form tag_<type>_<number>: CREATE TAG/VALUE ASSOCIATION
       (= (first iparts) "tag") 
       (let [source-type (read-string (str ":" (nth iparts 2)))
-            the-tag (read-string (nth iparts 4))]
+            the-tag (handle-indirection (read-string (nth iparts 4)) state)]
         (if (empty? (source-type state))
           state
           ((if @global-pop-when-tagging pop-item (fn [type state] state))
@@ -1557,16 +1559,16 @@ the following forms:
       (= (first iparts) "untag")
       (if (empty? (:tag state))
         state
-        (let [the-tag (read-string (nth iparts 2))]
+        (let [the-tag (handle-indirection (read-string (nth iparts 2)) state)]
           (assoc state :tag (dissoc (:tag state) (first (closest-association the-tag state))))))
       ;; else it must be of the form tagged_<number> -- PUSH VALUE
       :else
       (if (empty? (:tag state))
         state ;; no-op if no associations
         (if (= (nth iparts 2) "code") ;; it's tagged_code_<number>
-          (let [the-tag (read-string (nth iparts 4))]
+          (let [the-tag (handle-indirection (read-string (nth iparts 4)) state)]
             (push-item (second (closest-association the-tag state)) :code state))
-          (let [the-tag (read-string (nth iparts 2))] ;; it's just tagged_<number>, result->exec
+          (let [the-tag (handle-indirection (read-string (nth iparts 2)) state)] ;; it's just tagged_<number>, result->exec
             (push-item (second (closest-association the-tag state)) :exec state)))))))
 
 (defn tag-instruction-erc
