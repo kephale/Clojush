@@ -1369,7 +1369,8 @@ acting as a no-op if the movement would produce an error."
     (if (empty? (:zip state))
       state
       (let [result (ignore-errors (move-fn (top-item :zip state)))]
-        (if (or (nil? result) (not (vector? result)))
+        (if (or (nil? result) (not (vector? result))
+                (nil? (zip/node result)))
           state
           (push-item result :zip (pop-item :zip state)))))))
 
@@ -2255,83 +2256,3 @@ of nil values in execute-instruction, do see if any instructions are introducing
   [& args]
   (use (symbol (first args)))
   (System/exit 0))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Static analysis functions for push programs
-
-(defn modularity
-  "Count subtrees."
-  [tree]
-  (/ (count (filter seq? (all-items tree)))
-     (count-points tree)))
-
-(defn heirarchy
-  "How deep is the tree."
-  [tree]
-  (if (seq? tree)
-    (inc (apply max (map heirarchy tree)))
-    0))
-
-(defn reuse
-  "The ratio of duplicates of items to total number of items."
-  [tree]
-  (let [items (all-items tree)
-        freqs (frequencies items)]
-    (/ (reduce + (map dec (vals freqs)))
-       (count items))))
-
-(require ['clojure.contrib.duck-streams :as 'ds])
-
-(defn write-individual-properties
-  "Write the properties of a set of programs to file."
-  [individuals filename]
-  (ds/with-out-writer filename
-    (doseq [ind individuals]
-      (let [p (:program ind)]
-        (println (string/join "," (map float [(modularity p) (heirarchy p) (reuse p) (count-points p) (:total-error ind)])))))))
-
-(defn create-population
-  "Create a population of evaluated individuals."
-  [population-size atom-generators error-fn max-points]
-  (doall (apply pcalls
-                (repeat population-size
-                        #(let [p (random-code max-points atom-generators)
-                               e (error-fn p)
-                               te (reduce + e)]
-                           (make-individual :program p
-                                            :errors e
-                                            :total-error te))))))
-
-(defn vary-population
-  "Create a child population from a parent population with a given breed function (the breed function may clearly include replacement conditions."
-  [parent-population breed-fn]
-  (doall (pmap #(breed-fn % parent-population) parent-population)))
-
-(defn mutation-varier
-  "Create a mutation breed function."
-  [replacement-condition max-mutation-points max-points atom-generators error-fn]
-  (fn [individual population]
-    (let [child (evaluate-individual (mutate individual max-mutation-points max-points atom-generators) error-fn thread-local-random-generator)]
-      (cond
-       (= replacement-condition :pareto) (pareto-replacement individual child (new java.util.Random) error-fn)
-       :else child))))
-
-(defn padded-int
-  "Return string containing a padded integer."
-  [n padding]
-  (let [s (str n)]
-    (apply str (concat (repeat (- padding (count s)) "0") (list s)))))
-
-(defn documented-evolution
-  "Document an evolutionary run."
-  [population-size atom-generators error-fn max-points breed-fn base-filename num-generations]
-  (let [base-filename (str base-filename "_populationsize=" population-size "_maxpoints=" max-points)]
-    (println "Beginning documented evolution. Creating initial population...")
-    (let [population (atom (create-population population-size atom-generators error-fn max-points))]
-      (loop [generation 0]
-        (println "Generation" generation "has been evaluated. Time:" (System/nanoTime))
-        (when (< generation num-generations)        
-          (write-individual-properties @population (str base-filename "_generation=" (padded-int generation 5) ".csv"))
-          (reset! population (vary-population @population breed-fn))
-          (recur (inc generation)))))))
