@@ -1874,7 +1874,12 @@ by @global-node-selection-method."
         (println "\nNumber of unique programs in population: " (count frequency-map))
         (println "Max copy number of one program: " (apply max (vals frequency-map)))
         (println "Min copy number of one program: " (apply min (vals frequency-map)))
-        (println "Median copy number: " (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
+        (println "Median copy number of one program: " (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
+      (let [frequency-map (frequencies (map :errors population))]
+        (println "\nNumber of unique error vectors in population: " (count frequency-map))
+        (println "Max copy number of one error vector: " (apply max (vals frequency-map)))
+        (println "Min copy number of one error vector: " (apply min (vals frequency-map)))
+        (println "Median copy number of one error vector: " (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))      
       (printf "\n;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\n")
       (flush)
       (problem-specific-report best population generation error-function report-simplifications)
@@ -2074,24 +2079,6 @@ example."
                  targets
                  outputs))))))
 
-(defn pareto-replacement
-  "Decide whether a child program should replace the parent program. This function
-implements a Pareto dominance check. The child replaces the parent if it outperforms
-the parent in at least 1 dimension of error."
-  [parent child rand-gen error-function]
-  (binding [maintain-histories false];; We know evaluate-individual will be called once more on the child if it is chosen for replacement
-    (let [child (evaluate-individual child error-function rand-gen)
-          all-lte (reduce #(and %1 %2)
-                          (map <= (:errors child) (:errors parent)))
-          atleast-one-lt (some identity (map < (:errors child) (:errors parent)))]
-      (if (and all-lte atleast-one-lt);; Only keep a parent if it dominates the child
-        child
-        parent))))
-
-(defn replacement
-  [parent child rand-gen error-function]
-  (pareto-replacement parent child rand-gen error-function))
-
 (defn pushgp
   "The top-level routine of pushgp."
   [& {:keys [error-function error-threshold population-size max-points atom-generators max-generations
@@ -2209,11 +2196,8 @@ the parent in at least 1 dimension of error."
                         gaussian-mutation-per-number-mutation-probability gaussian-mutation-standard-deviation)))
                   (apply await child-agents) ;; SYNCHRONIZE
                   (printf "\nInstalling next generation...") (flush)
-                  #_(dotimes [i population-size]
-                      (send (nth pop-agents i) (fn [av] (deref (nth child-agents i)))))
                   (dotimes [i population-size]
-                    (send (nth pop-agents i)
-                          replacement (deref (nth child-agents i)) (nth rand-gens i) error-function))
+                    (send (nth pop-agents i) (fn [av] (deref (nth child-agents i)))))
                   (apply await pop-agents) ;; SYNCHRONIZE
                   (recur (inc generation))))))))))
 
