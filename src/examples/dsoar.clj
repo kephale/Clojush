@@ -235,18 +235,17 @@
   moves."
   [x y limit]
   (fn [program]
-    (let [num-obs-per-set (count (first (obstacles y)))]
-      (doall
-        (map (partial - (* x y) num-obs-per-set)
-          (for [i '(0 1)]
-            (count
-              (:mopped
-                (first
-                  (:auxiliary
-                    (run-push program
-                      (push-item (new-floor-state x y limit i)
-                        :auxiliary (make-push-state)) ;true
-		      )))))))))))
+    (let [num-obs-per-set (count (first (obstacles y)))
+	  error-trace-pairs (doall
+			     (for [i '(0 1)]
+			       (let [push-state (run-push program
+							  (push-item (new-floor-state x y limit i)
+								     :auxiliary (make-push-state)) 
+							  false :tag)] ;true
+				 [(- (* x y) num-obs-per-set (count (:mopped (first (:auxiliary push-state)))))
+				  (:trace push-state)])))]
+      (with-meta (doall (map first error-trace-pairs))
+	{:trace (doall (mapcat second error-trace-pairs))}))));; We have to keep the trace in the meta of an iObj
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; code for actual runs

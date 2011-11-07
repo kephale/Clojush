@@ -1763,15 +1763,16 @@ normal, or :abnormal otherwise."
 ;; Populations are vectors of agents with individuals as their states (along with error and
 ;; history information).
 
-(defrecord individual [program errors total-error history ancestors])
+(defrecord individual [program errors total-error history ancestors trace])
 
-(defn make-individual [& {:keys [program errors total-error history ancestors]
+(defn make-individual [& {:keys [program errors total-error history ancestors trace]
                           :or {program nil
                                errors nil
                                total-error nil ;; a non-number is used to indicate no value
                                history nil
-                               ancestors nil}}]
-  (individual. program errors total-error history ancestors))
+                               ancestors nil
+			       trace nil}}]
+  (individual. program errors total-error history ancestors trace))
 
 (defn choose-node-index-with-leaf-probability
   "Returns an index into tree, choosing a leaf with probability 
@@ -1885,6 +1886,15 @@ by @global-node-selection-method."
         (println "Max copy number of one error vector: " (apply max (vals frequency-map)))
         (println "Min copy number of one error vector: " (apply min (vals frequency-map)))
         (println "Median copy number of one error vector: " (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))      
+      (let [frequency-map (frequencies (mapcat :trace population))]
+        (println "\nNumber of unique tags in population: " (count frequency-map))
+        (println "Max copy number of one tag: " (when (vals frequency-map)
+						  (apply max (vals frequency-map))))
+        (println "Min copy number of one tag: " (when (vals frequency-map)
+						  (apply min (vals frequency-map))))
+        (println "Median copy number of one tag: " (when (vals frequency-map)
+						     (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
+	#_(println "Tag usage frequencies in population:" frequency-map))
       (printf "\n;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\n")
       (flush)
       (problem-specific-report best population generation error-function report-simplifications)
@@ -1973,16 +1983,21 @@ subprogram of parent2."
 ; (println "XXXXXX") (flush) ;***
   (binding [thread-local-random-generator rand-gen]
     (let [p (:program i)
+	  evaluation-result (when-not (and (seq? (:errors i)) @global-reuse-errors)
+			      (error-function p))
           e (if (and (seq? (:errors i)) @global-reuse-errors)
               (:errors i)
-              (error-function p))
+              evaluation-result)
           te (if (and (number? (:total-error i)) @global-reuse-errors)
                (:total-error i)
-               (keep-number-reasonable (reduce + e)))]
+               (keep-number-reasonable (reduce + e)))]	  
 ;(println te)(flush) ;***
       (make-individual :program p :errors e :total-error te 
         :history (if maintain-histories (cons te (:history i)) (:history i))
-        :ancestors (:ancestors i)))))
+        :ancestors (:ancestors i)
+	:trace (if evaluation-result
+		 (:trace (meta evaluation-result))
+		 (:trace i))))))
 
 (defn breed
   "Replaces the state of the given agent with an individual bred from the given population (pop), 
