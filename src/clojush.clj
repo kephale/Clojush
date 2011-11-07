@@ -1721,6 +1721,11 @@ normal, or :abnormal otherwise."
                         (= trace true) (assoc execution-result
                                          :trace
                                          (cons exec-top (let [t (:trace s)] (if (seq? t) t ()))))
+			(= trace :tag) (if (tag-instruction? exec-top)
+					 (assoc execution-result
+					   :trace
+					   (cons exec-top (:trace execution-result)))
+					 execution-result)
                         (= trace :changes) (if (= execution-result s)
                                              execution-result
                                              (assoc execution-result
