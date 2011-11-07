@@ -2221,7 +2221,7 @@ example."
           (do (if (>= generation max-generations)
                 (printf "\nFAILURE\n")
                 (do (printf "\nProducing offspring...") (flush)
-                  (let [pop (pareto-decimate (vec (doall (map deref pop-agents))) 
+                  (let [pop (decimate (vec (doall (map deref pop-agents))) 
                               (int (* decimation-ratio population-size))
                               decimation-tournament-size 
                               trivial-geography-radius)]
