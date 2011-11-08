@@ -1581,8 +1581,8 @@ from 0 to the global tag limit (exclusive)."
                    (name (rand-nth types))
                    "_"
                    (str (if @global-use-indirect-tagging
-                          (- (rand-int (* 2 @global-tag-limit)) @global-tag-limit)
-                          @global-tag-limit))))))
+                          (- (lrand-int (* 2 @global-tag-limit)) @global-tag-limit)
+                          (lrand-int @global-tag-limit)))))))
 
 (defn untag-instruction-erc
   "Returns a function which, when called on no arguments, returns a symbol of the form
@@ -1590,8 +1590,8 @@ untag_<number> where number is in the range from 0 to the specified limit (exclu
   []
   (fn [] (symbol (str "untag_"
                    (str (if @global-use-indirect-tagging
-                          (- (rand-int (* 2 @global-tag-limit)) @global-tag-limit)
-                          @global-tag-limit))))))
+                          (- (lrand-int (* 2 @global-tag-limit)) @global-tag-limit)
+                          (lrand-int @global-tag-limit)))))))
 
 (defn tagged-instruction-erc
   "Returns a function which, when called on no arguments, returns a symbol of the form
@@ -1599,8 +1599,8 @@ tagged_<number> where number is in the range from 0 to the specified limit (excl
   []
   (fn [] (symbol (str "tagged_"
                    (str (if @global-use-indirect-tagging
-                          (- (rand-int (* 2 @global-tag-limit)) @global-tag-limit)
-                          @global-tag-limit))))))
+                          (- (lrand-int (* 2 @global-tag-limit)) @global-tag-limit)
+                          (lrand-int @global-tag-limit)))))))
 
 (defn tagged-code-instruction-erc
   "Returns a function which, when called on no arguments, returns a symbol of the form
@@ -1608,8 +1608,8 @@ tagged_code_<number> where number is in the range from 0 to the specified limit 
   []
   (fn [] (symbol (str "tagged_code_"
                    (str (if @global-use-indirect-tagging
-                          (- (rand-int (* 2 @global-tag-limit)) @global-tag-limit)
-                          @global-tag-limit))))))
+                          (- (lrand-int (* 2 @global-tag-limit)) @global-tag-limit)
+                          (lrand-int @global-tag-limit)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; tagged-code macros
