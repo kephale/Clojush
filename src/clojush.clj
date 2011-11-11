@@ -1724,7 +1724,16 @@ normal, or :abnormal otherwise."
 			(= trace :tag) (if (tag-instruction? exec-top)
 					 (assoc execution-result
 					   :trace
-					   (cons exec-top (:trace execution-result)))
+					   (let [tagged-info (string/split #"[_]" (str exec-top))
+						 tag-num (read-string (last tagged-info))
+						 type (first tagged-info)
+						 this-state (handle-tag-instruction exec-top s)
+						 association (cond (= type "tagged") (closest-association tag-num this-state)
+								   (= type "tag") [tag-num (top-item :code s)]
+								   :else [])]
+					     (cons (with-meta exec-top
+						     {(first association) (second association)})
+						   (:trace execution-result))))
 					 execution-result)
                         (= trace :changes) (if (= execution-result s)
                                              execution-result
@@ -1894,7 +1903,13 @@ by @global-node-selection-method."
 						  (apply min (vals frequency-map))))
         (println "Median copy number of one tag: " (when (vals frequency-map)
 						     (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
-	#_(println "Tag usage frequencies in population:" frequency-map))
+	(println "Tag usage frequencies in population:" (map (fn [[tag ct]]
+							       {:tag-literal tag,
+								:tag-ref (first (meta tag))
+								:count ct,
+								:code (second (meta tag))
+								})
+							     frequency-map)))
       (printf "\n;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\n")
       (flush)
       (problem-specific-report best population generation error-function report-simplifications)
