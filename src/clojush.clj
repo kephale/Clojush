@@ -34,8 +34,8 @@
 (defn bt []
   (.printStackTrace *e))
 
-;; Move this to inside main or pushgp or somplace else later
-(def ^:dynamic *tag-file* nil)
+;;(def ^:dynamic *tag-file* nil)
+(def *tag-file* nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; globals
@@ -1786,11 +1786,11 @@ normal, or :abnormal otherwise."
 						 tag-num (read-string (last tagged-info))
 						 type (first tagged-info)
 						 this-state (handle-tag-instruction exec-top s)
-						 association (cond (= type "tagged") (closest-association tag-num this-state)
-								   (= type "tag") [tag-num (top-item :code s)]
-								   :else [])]
-					     (cons (with-meta exec-top
-						     {(first association) (second association)})
+						 [tag-ref code] (cond (= type "tagged") (closest-association tag-num this-state)
+								      (= type "tag") [(handle-indirection tag-num this-state)
+										      (top-item :code s)]
+								      :else [])]
+					     (cons (with-meta exec-top {:tag-ref tag-ref, :tagged-code code})
 						   (:trace execution-result))))
 					 execution-result)
                         (= trace :changes) (if (= execution-result s)
@@ -1961,14 +1961,13 @@ by @global-node-selection-method."
 						  (apply min (vals frequency-map))))
         (println "Median copy number of one tag: " (when (vals frequency-map)
 						     (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
-	(map (fn [[tag ct]]
-	       (ds/with-out-append-writer *tag-file*
-		 (println (apply str (interpose "," (list generation
-							  tag
-							  (first (keys (meta tag)))
-							  ct
-							  (doall (first (vals (meta tag))))))))))
-	     frequency-map))
+	(doseq [[tag ct] frequency-map]
+	  (ds/with-out-append-writer *tag-file*
+	    (println (apply str (interpose "," (list generation
+						     tag
+						     (:tag-ref (meta tag))
+						     ct
+						     (not-lazy (:tagged-code (meta tag))))))))))
       (printf "\n;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\n")
       (flush)
       (problem-specific-report best population generation error-function report-simplifications)
@@ -2371,6 +2370,7 @@ of nil values in execute-instruction, do see if any instructions are introducing
        lein run examples.simple-regression"
   [& args]
   (binding [*tag-file* (io/file (str (first args) "_" (System/nanoTime)))]
-    (ds/spit *tag-file* "generation,literal,ref,ct,code")
+    (ds/with-out-append-writer *tag-file*
+      (println "generation,literal,ref,ct,code"))
     (use (symbol (first args)))
     (System/exit 0)))
