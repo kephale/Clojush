@@ -24,6 +24,7 @@
     [clojure.contrib.math :as math]
     [clojure.contrib.seq-utils :as seq-utils]
     [clojure.contrib.duck-streams :as ds]
+    [clojure.contrib.io :as io]
     [clojure.walk :as walk]
     [clojure.contrib.string :as string]))
 
@@ -33,9 +34,8 @@
 (defn bt []
   (.printStackTrace *e))
 
-(def tag-file (java.io.File. (str (System/nanoTime))))
-;;(ds/with-out-append-writer tag-file
-;;  (println "generation,literal,ref,ct,code"))
+;; Move this to inside main or pushgp or somplace else later
+(def ^:dynamic *tag-file* nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; globals
@@ -1909,9 +1909,12 @@ by @global-node-selection-method."
         (println "Median copy number of one tag: " (when (vals frequency-map)
 						     (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
 	(map (fn [[tag ct]]
-	       (ds/append-spit
-		tag-file
-		 (println (apply str (interpose "," (list generation tag (first (keys (meta tag))) ct (doall (first (vals (meta tag))))))))))
+	       (ds/with-out-append-writer *tag-file*
+		 (println (apply str (interpose "," (list generation
+							  tag
+							  (first (keys (meta tag)))
+							  ct
+							  (doall (first (vals (meta tag))))))))))
 	     frequency-map))
       (printf "\n;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\n")
       (flush)
@@ -2314,5 +2317,7 @@ of nil values in execute-instruction, do see if any instructions are introducing
    This allows one to run an example with a call from the OS shell prompt like:
        lein run examples.simple-regression"
   [& args]
-  (use (symbol (first args)))
-  (System/exit 0))
+  (binding [*tag-file* (io/file (str (first args) "_" (System/nanoTime)))]
+    (ds/spit *tag-file* "generation,literal,ref,ct,code")
+    (use (symbol (first args)))
+    (System/exit 0)))
