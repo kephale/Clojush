@@ -23,6 +23,7 @@
     [clojure.zip :as zip]
     [clojure.contrib.math :as math]
     [clojure.contrib.seq-utils :as seq-utils]
+    [clojure.contrib.duck-streams :as ds]
     [clojure.walk :as walk]
     [clojure.contrib.string :as string]))
 
@@ -31,6 +32,10 @@
 ;; backtrace abbreviation, to ease debugging
 (defn bt []
   (.printStackTrace *e))
+
+(def tag-file (java.io.File. (str (System/nanoTime))))
+;;(ds/with-out-append-writer tag-file
+;;  (println "generation,literal,ref,ct,code"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; globals
@@ -1903,13 +1908,11 @@ by @global-node-selection-method."
 						  (apply min (vals frequency-map))))
         (println "Median copy number of one tag: " (when (vals frequency-map)
 						     (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
-	(println "Tag usage frequencies in population:" (map (fn [[tag ct]]
-							       {:tag-literal tag,
-								:tag-ref (first (meta tag))
-								:count ct,
-								:code (second (meta tag))
-								})
-							     frequency-map)))
+	(map (fn [[tag ct]]
+	       (ds/append-spit
+		tag-file
+		 (println (apply str (interpose "," (list generation tag (first (keys (meta tag))) ct (doall (first (vals (meta tag))))))))))
+	     frequency-map))
       (printf "\n;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\n")
       (flush)
       (problem-specific-report best population generation error-function report-simplifications)
