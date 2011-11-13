@@ -9,14 +9,14 @@
 ;; This version was written by Brian Martin in 2010-2011.
 
 (ns examples.dsoar
-  (:require [clojush]
+  (:require [clojush :exclude '-main]
 	    [clojure.contrib.math])
-  (:use [clojush] 
-    [clojure.contrib.math]))
+  (:use [clojush :exclude '-main]
+	[clojure.contrib.math]))
 
 (in-ns 'clojush)
 
-(def push-types '(:exec :integer :float :code :boolean :auxiliary :tag :intvec2D))
+(def push-types (if (some #{:intvec2D} push-types) push-types (cons :intvec2D push-types)))
 (define-push-state-structure)
 
 (defn recognize-literal
@@ -26,6 +26,7 @@
     (number? thing) :float
     (or (= thing true) (= thing false)) :boolean
     (vector? thing) :intvec2D ;; just assume length is right
+    (keyword? thing) :key
     true false))
 
 (in-ns 'examples.dsoar)
@@ -231,8 +232,8 @@
 
 (defn mopper-fitness
   "Returns a fitness function for the dsoar problem with a floor of the
-  specified size (x and y) and the specified limit on numbers of turns and
-  moves."
+specified size (x and y) and the specified limit on numbers of turns and
+moves."
   [x y limit]
   (fn [program]
     (let [num-obs-per-set (count (first (obstacles y)))
@@ -240,12 +241,12 @@
 			     (for [i '(0 1)]
 			       (let [push-state (run-push program
 							  (push-item (new-floor-state x y limit i)
-								     :auxiliary (make-push-state)) 
+								     :auxiliary (make-push-state))
 							  false :tag)] ;true
 				 [(- (* x y) num-obs-per-set (count (:mopped (first (:auxiliary push-state)))))
 				  (:trace push-state)])))]
       (with-meta (doall (map first error-trace-pairs))
-	{:trace (doall (mapcat second error-trace-pairs))}))));; We have to keep the trace in the meta of an iObj
+	{:trace (doall (mapcat second error-trace-pairs))}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; code for actual runs
@@ -254,7 +255,7 @@
 #_(pushgp
   :error-function (mopper-fitness 8 8 100)
   :atom-generators (list 'if-dirty 'if-obstacle 'left 'mop 'v8a 'frog
-                     (fn [] [(rand-int 8) (rand-int 8)]))
+                     (fn [] [(lrand-int 8) (lrand-int 8)]))
   :mutation-probability 0.3
   :crossover-probability 0.3
   :simplification-probability 0.3
@@ -263,16 +264,36 @@
   :evalpush-limit 1000)
 
 ;; standard 8x8 dsoar problem but with tags
-(pushgp
- :error-function (mopper-fitness 8 8 100)
- :use-indirect-tagging true
- :atom-generators (list 'if-dirty 'if-obstacle 'left 'mop 'v8a 'frog
-                        (fn [] [(rand-int 8) (rand-int 8)])
-                        (tag-instruction-erc [:exec])
-                        (tagged-instruction-erc))
- :mutation-probability 0.3
- :crossover-probability 0.3
- :simplification-probability 0.3
- :reproduction-simplifications 10
- :max-points 200
- :evalpush-limit 1000)
+#_(pushgp
+  :error-function (mopper-fitness 8 8 100)
+  :atom-generators (list 'if-dirty 'if-obstacle 'left 'mop 'v8a 'frog
+                           (fn [] [(lrand-int 8) (lrand-int 8)])
+                           (tag-instruction-erc [:exec])
+                           (tagged-instruction-erc))
+  :mutation-probability 0.3
+  :crossover-probability 0.3
+  :simplification-probability 0.3
+  :reproduction-simplifications 10
+  :max-points 200
+  :evalpush-limit 1000)
+
+(defn -main [& args]
+  (let [argmap (zipmap (map #(keyword (reduce str (drop 2 %))) (take-nth 2 args))
+		       (map read-string (take-nth 2 (drop 1 args))))
+	size (or (:size argmap) 4)
+	limit (or (:move-limit argmap) 
+		  (cond (= size 4) 50
+			(= size 6) 75
+			(= size 8) 100
+			(= size 10) 125
+			(= size 12) 150))
+	args (-> argmap
+		 (assoc :max-points (* 10 limit))
+		 (assoc :evalpush-limit (* 10 limit))
+		 (assoc :error-function (mopper-fitness 8 size limit))
+		 (assoc :atom-generators (list 'if-dirty 'if-obstacle 'left 'mop 'v8a 'frog
+					       (fn [] [(lrand-int 8) (lrand-int size)])
+					       (tag-instruction-erc [:exec])
+					       (tagged-instruction-erc))))]
+    (pushgp-map args))
+  (System/exit 0))
