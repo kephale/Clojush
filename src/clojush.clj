@@ -1959,7 +1959,6 @@ by @global-node-selection-method."
 						  (apply max (vals frequency-map))))
 	(println "Min copy number of one tag: " (when (vals frequency-map)
 						  (apply min (vals frequency-map))))
-<<<<<<< HEAD
 	(println "Median copy number of one tag: " (when (vals frequency-map)
 						     (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2))))))
       (let [records (->> (mapcat #(for [inst (:trace %1)]
@@ -1974,12 +1973,6 @@ by @global-node-selection-method."
 				     (:tag (meta %))(:tagged (meta %))))
 			 (frequencies))]
 	(doseq [record records]
-=======
-        (println "Median copy number of one tag: " (when (vals frequency-map)
-						     (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
-	(println "Tag frequency map:" frequency-map)
-	#_(doseq [[tag ct] frequency-map]
->>>>>>> fb96add2d9ad6a2905129748d2d8f0e7170d1bc1
 	  (ds/with-out-append-writer *tag-file*
 	    (println (apply str (interpose "," (concat (first record) (list (second record)))))))))
       (printf "\n;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\n")
@@ -2383,9 +2376,7 @@ of nil values in execute-instruction, do see if any instructions are introducing
    This allows one to run an example with a call from the OS shell prompt like:
        lein run examples.simple-regression"
   [& args]
-  (use (symbol (first args)))
-  (System/exit 0)
-  #_(binding [*tag-file* (io/file (str (first args) "_" (System/nanoTime)))]
+  (binding [*tag-file* (io/file (str (first args) "_" (System/nanoTime)))]
     (ds/with-out-append-writer *tag-file*
       (println "generation,id,literal,ref.num,ref.code,ref.code.size,genotype.tag,genotype.tagged, frequency"))
     (use (symbol (first args)))
