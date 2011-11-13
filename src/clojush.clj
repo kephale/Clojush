@@ -1785,7 +1785,7 @@ normal, or :abnormal otherwise."
 					   (let [tagged-info (string/split #"[_]" (str exec-top))
 						 tag-num (read-string (last tagged-info))
 						 type (first tagged-info)
-						 this-state (handle-tag-instruction exec-top s)
+						 this-state s ;;(handle-tag-instruction exec-top s)
 						 [tag-ref code] (cond (= type "tagged") (closest-association tag-num this-state)
 								      (= type "tag") [(handle-indirection tag-num this-state)
 										      (top-item :code s)]
@@ -1954,20 +1954,27 @@ by @global-node-selection-method."
         (println "Min copy number of one error vector: " (apply min (vals frequency-map)))
         (println "Median copy number of one error vector: " (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))      
       (let [frequency-map (frequencies (mapcat :trace population))]
-        (println "\nNumber of unique tags in population: " (count frequency-map))
-        (println "Max copy number of one tag: " (when (vals frequency-map)
+	(println "\nNumber of unique tags in population: " (count frequency-map))
+	(println "Max copy number of one tag: " (when (vals frequency-map)
 						  (apply max (vals frequency-map))))
-        (println "Min copy number of one tag: " (when (vals frequency-map)
+	(println "Min copy number of one tag: " (when (vals frequency-map)
 						  (apply min (vals frequency-map))))
-        (println "Median copy number of one tag: " (when (vals frequency-map)
-						     (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
-	(doseq [[tag ct] frequency-map]
+	(println "Median copy number of one tag: " (when (vals frequency-map)
+						     (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2))))))
+      (let [records (->> (mapcat #(for [inst (:trace %1)]
+				    (with-meta inst (-> (meta inst)
+							(assoc :id %2)
+							(assoc :tag (count (filter (fn [i] (string/substring? "tag_" (str i))) (flatten (:program %1)))))
+							(assoc :tagged (count (filter (fn [i] (string/substring? "tagged_" (str i))) (flatten (:program %1))))))))
+				 population (iterate inc 0))
+			 (map #(list generation (:id (meta %)) % (:tag-ref (meta %))
+				     (not-lazy (:tagged-code (meta %)))
+				     (count-points (not-lazy (:tagged-code (meta %))))
+				     (:tag (meta %))(:tagged (meta %))))
+			 (frequencies))]
+	(doseq [record records]
 	  (ds/with-out-append-writer *tag-file*
-	    (println (apply str (interpose "," (list generation
-						     tag
-						     (:tag-ref (meta tag))
-						     ct
-						     (not-lazy (:tagged-code (meta tag))))))))))
+	    (println (apply str (interpose "," (concat (first record) (list (second record)))))))))
       (printf "\n;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\n")
       (flush)
       (problem-specific-report best population generation error-function report-simplifications)
@@ -2371,6 +2378,6 @@ of nil values in execute-instruction, do see if any instructions are introducing
   [& args]
   (binding [*tag-file* (io/file (str (first args) "_" (System/nanoTime)))]
     (ds/with-out-append-writer *tag-file*
-      (println "generation,literal,ref,ct,code"))
+      (println "generation,id,literal,ref.num,ref.code,ref.code.size,genotype.tag,genotype.tagged, frequency"))
     (use (symbol (first args)))
     (System/exit 0)))
