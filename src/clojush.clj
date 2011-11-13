@@ -1961,7 +1961,8 @@ by @global-node-selection-method."
 						  (apply min (vals frequency-map))))
         (println "Median copy number of one tag: " (when (vals frequency-map)
 						     (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
-	(doseq [[tag ct] frequency-map]
+	(println "Tag frequency map:" frequency-map)
+	#_(doseq [[tag ct] frequency-map]
 	  (ds/with-out-append-writer *tag-file*
 	    (println (apply str (interpose "," (list generation
 						     tag
@@ -2369,7 +2370,9 @@ of nil values in execute-instruction, do see if any instructions are introducing
    This allows one to run an example with a call from the OS shell prompt like:
        lein run examples.simple-regression"
   [& args]
-  (binding [*tag-file* (io/file (str (first args) "_" (System/nanoTime)))]
+  (use (symbol (first args)))
+  (System/exit 0)
+  #_(binding [*tag-file* (io/file (str (first args) "_" (System/nanoTime)))]
     (ds/with-out-append-writer *tag-file*
       (println "generation,literal,ref,ct,code"))
     (use (symbol (first args)))
