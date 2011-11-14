@@ -264,7 +264,7 @@ moves."
   :evalpush-limit 1000)
 
 ;; standard 8x8 dsoar problem but with tags
-#_(pushgp
+(pushgp
   :error-function (mopper-fitness 8 8 100)
   :atom-generators (list 'if-dirty 'if-obstacle 'left 'mop 'v8a 'frog
                            (fn [] [(lrand-int 8) (lrand-int 8)])
@@ -277,7 +277,7 @@ moves."
   :max-points 200
   :evalpush-limit 1000)
 
-(defn -main [& args]
+#_(defn -main [& args]
   (let [argmap (zipmap (map #(keyword (reduce str (drop 2 %))) (take-nth 2 args))
 		       (map read-string (take-nth 2 (drop 1 args))))
 	size (or (:size argmap) 4)
