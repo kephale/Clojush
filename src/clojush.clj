@@ -2233,8 +2233,7 @@ example."
              evalpush-limit evalpush-time-limit node-selection-method node-selection-leaf-probability
              node-selection-tournament-size pop-when-tagging gaussian-mutation-probability 
              gaussian-mutation-per-number-mutation-probability gaussian-mutation-standard-deviation
-	     reuse-errors problem-specific-report use-single-thread random-seed]
-	     reuse-errors problem-specific-report use-indirect-tagging tag-limit]
+	     reuse-errors problem-specific-report use-single-thread random-seed use-indirect-tagging tag-limit]             
       :or {error-function (fn [p] '(0)) ;; pgm -> list of errors (1 per case)
            error-threshold 0
            population-size 1000
@@ -2271,6 +2270,7 @@ example."
            use-indirect-tagging false
            tag-limit 1000
            }}]
+  
   (binding [thread-local-random-generator (java.util.Random. random-seed)]
     ;; set globals from parameters
     (reset! global-atom-generators atom-generators)
@@ -2282,6 +2282,9 @@ example."
     (reset! global-node-selection-tournament-size node-selection-tournament-size)
     (reset! global-pop-when-tagging pop-when-tagging)
     (reset! global-reuse-errors reuse-errors)
+    (reset! global-use-indirect-tagging use-indirect-tagging)
+    (reset! global-tag-limit tag-limit)
+    
     (printf "\nStarting PushGP run.\n\n") (flush)
     (print-params 
      (error-function error-threshold population-size max-points atom-generators max-generations 
@@ -2292,7 +2295,7 @@ example."
                      trivial-geography-radius decimation-ratio decimation-tournament-size evalpush-limit
                      evalpush-time-limit node-selection-method node-selection-tournament-size
                      node-selection-leaf-probability pop-when-tagging reuse-errors
-                     use-single-thread random-seed
+                     use-single-thread random-seed use-indirect-tagging tag-limit
                      ))
     (printf "\nGenerating initial population...\n") (flush)
     (let [pop-agents (vec (doall (for [_ (range population-size)] 
@@ -2352,83 +2355,6 @@ example."
                          (nth pop-agents i) (fn [av] (deref (nth child-agents i)))))
                       (when-not use-single-thread (apply await pop-agents)) ;; SYNCHRONIZE
                       (recur (inc generation)))))))))))
-  ;; set globals from parameters
-  (reset! global-atom-generators atom-generators)
-  (reset! global-max-points-in-program max-points)
-  (reset! global-evalpush-limit evalpush-limit)
-  (reset! global-evalpush-time-limit evalpush-time-limit)
-  (reset! global-node-selection-method node-selection-method)
-  (reset! global-node-selection-leaf-probability node-selection-leaf-probability)
-  (reset! global-node-selection-tournament-size node-selection-tournament-size)
-  (reset! global-pop-when-tagging pop-when-tagging)
-  (reset! global-reuse-errors reuse-errors)
-  (reset! global-use-indirect-tagging use-indirect-tagging)
-  (reset! global-tag-limit tag-limit)
-  (printf "\nStarting PushGP run.\n\n") (flush)
-  (print-params 
-    (error-function error-threshold population-size max-points atom-generators max-generations 
-      mutation-probability mutation-max-points crossover-probability
-      simplification-probability gaussian-mutation-probability 
-      gaussian-mutation-per-number-mutation-probability gaussian-mutation-standard-deviation
-      tournament-size report-simplifications final-report-simplifications
-      trivial-geography-radius decimation-ratio decimation-tournament-size evalpush-limit
-      evalpush-time-limit node-selection-method node-selection-tournament-size
-      node-selection-leaf-probability pop-when-tagging reuse-errors use-indirect-tagging
-      ))
-  (printf "\nGenerating initial population...\n") (flush)
-  (let [pop-agents (vec (doall (for [_ (range population-size)] 
-                                 (agent (make-individual 
-                                          :program (random-code max-points atom-generators))
-                                   :error-handler (fn [agnt except] (println except))))))
-        child-agents (vec (doall (for [_ (range population-size)]
-                                   (agent (make-individual)
-                                     :error-handler (fn [agnt except] (println except))))))
-        rand-gens (vec (doall (for [_ (range population-size)]
-                                (java.util.Random.))))]
-    (loop [generation 0]
-      (printf "\n\n-----\nProcessing generation: %s\nComputing errors..." generation) (flush)
-      (dorun (map #(send % evaluate-individual error-function %2) pop-agents rand-gens))
-      (apply await pop-agents) ;; SYNCHRONIZE ; might this need a dorun?
-      (printf "\nDone computing errors.") (flush)
-      
-;; some debugging code trying to track down nil agent results.... leaving in case not fixed
-;(println (map :total-error (vec (doall (map deref pop-agents)))))(flush) ;***
-;(loop [ers (map :total-error (vec (doall (map deref pop-agents))))] ;***
-;  (when (some not ers) 
-;    (println (map :total-error (vec (doall (map deref pop-agents)))))(flush) 
-;    (recur (map :total-error (vec (doall (map deref pop-agents)))))))
-      
-      ;; report and check for success
-      (let [best (report (vec (doall (map deref pop-agents))) generation error-function 
-			 report-simplifications problem-specific-report)]
-        (if (<= (:total-error best) error-threshold)
-          (do (printf "\n\nSUCCESS at generation %s\nSuccessful program: %s\nErrors: %s\nTotal error: %s\nHistory: %s\nSize: %s\n\n"
-                generation (not-lazy (:program best)) (not-lazy (:errors best)) (:total-error best) 
-                (not-lazy (:history best)) (count-points (:program best)))
-            (when print-ancestors-of-solution
-              (printf "\nAncestors of solution:\n")
-              (println (:ancestors best)))
-            (auto-simplify best error-function final-report-simplifications true 500))
-          (do (if (>= generation max-generations)
-                (printf "\nFAILURE\n")
-                (do (printf "\nProducing offspring...") (flush)
-                  (let [pop (decimate (vec (doall (map deref pop-agents))) 
-                              (int (* decimation-ratio population-size))
-                              decimation-tournament-size 
-                              trivial-geography-radius)]
-                    (dotimes [i population-size]
-                      (send (nth child-agents i) 
-                        breed i (nth rand-gens i) pop error-function population-size max-points atom-generators 
-                        mutation-probability mutation-max-points crossover-probability 
-                        simplification-probability tournament-size reproduction-simplifications 
-                        trivial-geography-radius gaussian-mutation-probability 
-                        gaussian-mutation-per-number-mutation-probability gaussian-mutation-standard-deviation)))
-                  (apply await child-agents) ;; SYNCHRONIZE
-                  (printf "\nInstalling next generation...") (flush)
-                  (dotimes [i population-size]
-                    (send (nth pop-agents i) (fn [av] (deref (nth child-agents i)))))
-                  (apply await pop-agents) ;; SYNCHRONIZE
-                  (recur (inc generation))))))))))
 
 (defn pushgp-map
   "Calls pushgp with the args in argmap."
