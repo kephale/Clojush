@@ -53,18 +53,36 @@
     (push-item "-" :string state)))
 
 (defn arithmetic-err [program]
-  (let [state (run-push program (make-push-state))
-	expr (:string state)]
-    (println expr (type expr) (boolean (seq expr)) (reduce str expr))
+  (let [state (run-push program (push-item true :boolean (make-push-state)))
+	expr (:string state)
+	input1 "(+ 3 4 (- 1 2) (- 90 34))"
+	input2 "(+ (- 3 4) 10 (- 1 2) (- 90 34))"
+	input3 "(+ - 3)"
+	input4  "(10)"]
     (if (seq expr)
       (do
-	 (+ (eval-subexpr (reduce str expr))
-	    (if (= 0 (count (set/intersection string-literals
-					      (set expr))))
-	      5 0)))
+	(+ (eval-subexpr (reduce str expr))
+	   (- (count string-literals)
+	      (count (set/intersection string-literals (set expr))))
+	   (reduce +
+		   (for [input (list [input1 62] [input2 64] [input3 :no-stack-item] [input4 :no-stack-item])]
+		     (if (= (top-item :integer
+				      (run-push program
+						(push-item (input 0) :string
+							   (push-item false :boolean (make-push-state)))))
+			    (input 1))
+		       0 7)))))
       50)))
 
-(pushgp :error-function (fn [program] (list (arithmetic-err program)))
-	:evalpush-limit 100
-	:population-size 200
-	:max-generations 50)
+(pushgp :error-function (fn [program] (map arithmetic-err (repeat 10 program)))
+;; 	:atom-generators (conj (seq @registered-instructions)
+;; 			       (tag-instruction-erc [:exec])
+	;; 			       (tagged-instruction-erc))
+	:final-report-simplifications 0
+	:report-simplifications 0
+	:simplification-probability 0
+	:reproduction-simplifications 0
+	:evalpush-limit 500
+	:max-points 150
+	:population-size 1000
+	:max-generations 1001)
