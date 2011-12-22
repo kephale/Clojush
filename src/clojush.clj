@@ -95,6 +95,14 @@ provided n. Arguments greater than 2^31-1 are treated as if they were 2^31-1 (21
   [coll]
   (nth coll (. thread-local-random-generator (nextInt (count coll)))))
 
+(defn lshuffle
+  "Return a random permutation of coll (Adapted from clojure.core)"
+  {:static true}
+  [^java.util.Collection coll]
+  (let [al (java.util.ArrayList. coll)]
+    (java.util.Collections/shuffle al thread-local-random-generator)
+    (clojure.lang.RT/vector (.toArray al))))
+
 (defn decompose
   "Returns a list of at most max-parts numbers that sum to number.
 The order of the numbers is not random (you may want to shuffle it)."
@@ -114,7 +122,7 @@ The order of the numbers is not random (you may want to shuffle it)."
         (element)
         element))
     (let [elements-this-level 
-          (shuffle (decompose (dec points) (dec points)))]
+          (lshuffle (decompose (dec points) (dec points)))]
       (doall (map (fn [size] (random-code-with-size size atom-generators))
                elements-this-level)))))
 
@@ -1971,7 +1979,7 @@ by @global-node-selection-method."
       (printf "\nAverage program size in population (points): %s"
               (* 1.0 (/ (reduce + (map count-points (map :program sorted)))
                         (count population))))(flush)
-      (println "---")			
+      (println "\n---")			
       (let [frequency-map (frequencies (map :program population))]
         (println "\nNumber of unique programs in population: " (count frequency-map))
         (println "Max copy number of one program: " (apply max (vals frequency-map)))

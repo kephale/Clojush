@@ -10,26 +10,7 @@
 ;; For Kyle's full version see https://github.com/kephale/Clojush
 
 (ns examples.intertwined-spirals
-  (:require [clojush] [clojure.contrib.duck-streams :as ds])
-  (:use [clojush]))
-
-(in-ns 'clojush)
-
-(defn error-to-csv
-  "Write a spiral classification to csv matrix file."
-  [classification filename]
-  (spit filename (reduce (fn [c d]
-			   (str c "\n" d))
-			 (map (fn [x]
-				(reduce (fn [a b] (str a "," b)) x))
-			      classification))))
-
-#_(defn problem-specific-report
-  "Customize this for your own problem. It will be called at the end of the generational report."
-  [best population generation error-function report-simplifications]
-  (error-to-csv (:classification (meta (error-function (:program best)))) (str "best_spiral_timeX" (java.util.Date.) "_genX" generation ".csv")))
-
-(in-ns 'examples.intertwined-spirals)
+  (:use [clojush :exclude [-main]]))
 
 ;;;;;;;;;;;;
 ;; Intertwined Spirals problem
@@ -37,7 +18,7 @@
 ;; First solved with GP by John Koza in "A GENETIC APPROACH TO THE TRUCK BACKER UPPER PROBLEM AND THE INTER-TWINED SPIRAL PROBLEM,"  IJCNN, 1992.
 ;;
 
-(def pi 3.1415)
+(def pi 3.1415927)
 
 (def num-samples 97)
 
@@ -56,10 +37,16 @@
 		  (inc k))))))
        
 (define-registered x
-  (fn [state] (push-item (stack-ref :auxiliary 0 state) :float state)))
+  (fn [state]
+    (if (empty? (:auxiliary state))
+      state
+      (push-item (stack-ref :auxiliary 0 state) :float state))))
 
 (define-registered y
-  (fn [state] (push-item (stack-ref :auxiliary 1 state) :float state)))
+  (fn [state]
+    (if (empty? (:auxiliary state))
+      state
+      (push-item (stack-ref :auxiliary 1 state) :float state))))
 
 (define-registered iflte
   (fn [state]
@@ -117,16 +104,16 @@ Prediction is spiral-1 if the (top float) > 0 and spiral-2 if the (top float) <=
           'float_add 'float_sub 'float_mult 'float_div
           'float_sin 'float_cos
           'iflte
-          (tag-instruction-erc [:float :exec] 100)
-          (untag-instruction-erc 100)
-          (tagged-instruction-erc 100))})		     
+          (tag-instruction-erc [:float :exec])
+          (untag-instruction-erc)
+          (tagged-instruction-erc))})		     
 
 (defn spiral-error
   [program]
   (let [classification (classify-spiral program)]
     (with-meta (map #(cond (= (nth % 3) -1)  1000         ; Did we get an invalid reponse?
 			   (= (last %) 1)       0 ; Correct answer?
-			   :else               17); Else wrong
+			   :else               1); Else wrong
 		    classification)
       {:classification classification})))
 
@@ -138,5 +125,27 @@ Prediction is spiral-1 if the (top float) > 0 and spiral-2 if the (top float) <=
    :error-function spiral-error,
    :atom-generators (:basic spiral-instructions)))
 
-(intertwined-spirals-demo)
+#_(intertwined-spirals-demo)
+
+(defn -main [& args]
+  (let [argmap (apply hash-map
+		      (map read-string
+			   (drop-while #(not= (first %) \:) args)))
+;	argmap (zipmap (map #(keyword (reduce str (drop 2 %))) (take-nth 2 args))
+;		       (map read-string (take-nth 2 (drop 1 args))))
+        atom-generators (concat
+                         (when (:use-tags argmap) (list (tag-instruction-erc [:exec]) (tagged-instruction-erc)))
+			 (when (:use-tagdo argmap) (list (tagdo-instruction-erc [:exec])))
+			 (when (and (:use-padding argmap) (not (:use-tags argmap))) (repeat 2 'exec_noop))    
+			 (:basic spiral-instructions))
+	args (-> argmap
+		 (assoc :mutation-probability (or (:mutation-probability argmap) 0.45))
+		 (assoc :crossover-probability (or (:crossover-probability argmap) 0.45))
+		 (assoc :simplification-probability (or (:simplification-probability argmap) 0))
+                 (assoc :max-points (or (:max-points argmap) 250))
+		 (assoc :evalpush-limit (or (:evalpush-limit argmap) 500))
+		 (assoc :error-function spiral-error)
+		 (assoc :atom-generators atom-generators))]
+    (pushgp-map args))
+  (System/exit 0))
 

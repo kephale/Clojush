@@ -13,31 +13,8 @@
 ;; in this file before running it.
 
 (ns examples.mux
-  (:use [clojush] [clojure.contrib.math]))
-
-;;; HACKS to Clojush stuff for experimentation here
-;;; Hacks for collecting and printing full ancestor lists
-(in-ns 'clojush)
-(def maintain-ancestors true)
-(def print-ancestors-of-solution true)
-(defn crossover 
-  "Returns a copy of parent1 with a random subprogram replaced with a random 
-subprogram of parent2."
-  [parent1 parent2 max-points]
-  (let [new-program (insert-code-at-point 
-                      (:program parent1) 
-                      (select-node-index (:program parent1))
-                      (code-at-point (:program parent2)
-                        (select-node-index (:program parent2))))]
-    (if (> (count-points new-program) max-points)
-      parent1
-      (make-individual :program new-program :history (:history parent1)
-        :ancestors (if maintain-ancestors
-                     (list (list 'XOVER (cons (:program parent1) (:ancestors parent1)) ;;; CHANGED HERE
-                       (cons (:program parent2) (:ancestors parent2)))) ;;; CHANGED HERE
-                     (:ancestors parent1))))))
-
-(in-ns 'examples.mux) ;; end of hacks to clojush.clj
+  (:use [clojush :exclude [-main]]
+	[clojure.contrib.math]))
 
 ;; We store address bits in a vector on top of the auxiliary stack
 ;; and data bits in a vector under the address bits vector.
@@ -112,7 +89,26 @@ subprogram of parent2."
       total
       (recur (drop 1 remaining)
         (+ total (* (if (first remaining) 1 0) (expt 2 (dec (count remaining)))))))))
-  
+
+(def error-fn
+     (fn [program]
+                    (let [total-num-bits (+ number-of-address-bits number-of-data-bits)]
+                      (doall
+                        (for [i (range (expt 2 total-num-bits))]
+                          (let [bits (int->bits i total-num-bits)
+                                address-bits (vec (take number-of-address-bits bits))
+                                data-bits (vec (drop number-of-address-bits bits))
+                                state (run-push program 
+                                        (push-item address-bits :auxiliary 
+                                          (push-item data-bits :auxiliary 
+                                            (make-push-state))))
+                                top-bool (top-item :boolean state)]
+                            (if (= top-bool :no-stack-item)
+                              1000000
+                              (if (= top-bool (nth data-bits (bits->int address-bits)))
+                                0
+                                1))))))))
+
 #_(pushgp 
   :error-function (fn [program]
                     (let [total-num-bits (+ number-of-address-bits number-of-data-bits)]
@@ -150,7 +146,7 @@ subprogram of parent2."
   :decimation-ratio 0.1
   :decimation-tournament-size 2)
 
-(pushgp 
+#_(pushgp 
   :error-function (fn [program]
                     (let [total-num-bits (+ number-of-address-bits number-of-data-bits)]
                       (doall
@@ -191,3 +187,29 @@ subprogram of parent2."
   ;:decimation-ratio 0.1
   ;:decimation-tournament-size 2
   )
+
+(defn -main [& args]
+  (let [argmap (apply hash-map
+		      (map read-string
+			   (drop-while #(not= (first %) \:) args)))
+;	argmap (zipmap (map #(keyword (reduce str (drop 2 %))) (take-nth 2 args))
+;		       (map read-string (take-nth 2 (drop 1 args))))
+        atom-generators (concat
+                         (when (:use-tags argmap) (list (tag-instruction-erc [:exec]) (tagged-instruction-erc)))
+			 (when (:use-tagdo argmap) (list (tagdo-instruction-erc [:exec])))
+			 (when (and (:use-padding argmap) (not (:use-tags argmap))) (repeat 2 'exec_noop))    
+			 (when (:boolean-stack-manip argmap) '(boolean_dup boolean_swap boolean_pop boolean_rot))
+                         '(exec_if boolean_and boolean_or boolean_not
+				   a0 a1; a2
+				   d0 d1 d2 d3)) ; d4 d5 d6 d7)
+	args (-> argmap
+		 (assoc :mutation-probability (or (:mutation-probability argmap) 0.45))
+		 (assoc :crossover-probability (or (:crossover-probability argmap) 0.45))
+		 (assoc :simplification-probability (or (:simplification-probability argmap) 0))
+                 (assoc :max-points (or (:max-points argmap) 150))
+		 (assoc :evalpush-limit (* 2 (or (:max-points argmap) 150)))
+		 (assoc :max-generations (or (:max-generations argmap) 101))
+		 (assoc :error-function error-fn)
+		 (assoc :atom-generators atom-generators))]
+    (pushgp-map args))
+  (System/exit 0))

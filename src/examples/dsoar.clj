@@ -264,7 +264,7 @@ moves."
   :evalpush-limit 1000)
 
 ;; standard 8x8 dsoar problem but with tags
-(pushgp
+#_(pushgp
   :error-function (mopper-fitness 8 8 100)
   :atom-generators (list 'if-dirty 'if-obstacle 'left 'mop 'v8a 'frog
                            (fn [] [(lrand-int 8) (lrand-int 8)])
@@ -295,5 +295,38 @@ moves."
 					       (fn [] [(lrand-int 8) (lrand-int size)])
 					       (tag-instruction-erc [:exec])
 					       (tagged-instruction-erc))))]
+    (pushgp-map args))
+  (System/exit 0))
+
+(defn -main [& args]
+  (let [argmap (apply hash-map
+		      (map read-string
+			   (drop-while #(not= (first %) \:) args)))
+;	argmap (zipmap (map #(keyword (reduce str (drop 2 %))) (take-nth 2 args))
+;		       (map read-string (take-nth 2 (drop 1 args))))
+	size (or (:size argmap) 4)
+	limit (or (:move-limit argmap) 
+		  (cond (= size 4) 50
+			(= size 6) 75
+			(= size 8) 100
+			(= size 10) 125
+			(= size 12) 150))	
+        atom-generators (concat
+                         (when (:use-tags argmap) (list (tag-instruction-erc [:exec]) (tagged-instruction-erc)))
+			 (when (:use-tagdo argmap) (list (tagdo-instruction-erc [:exec])))
+			 (when (and (:use-padding argmap) (not (:use-tags argmap))) (repeat 2 'exec_noop))    
+			 (list 'if-dirty 'if-obstacle 'left 'mop 'v8a 'frog
+			       (fn [] [(lrand-int 8) (lrand-int size)])))
+	error-fn (mopper-fitness 8 size limit)
+	args (-> argmap
+		 (assoc :mutation-probability (or (:mutation-probability argmap) 0.45))
+		 (assoc :crossover-probability (or (:crossover-probability argmap) 0.45))
+		 (assoc :simplification-probability (or (:simplification-probability argmap) 0))
+                 (assoc :max-points (or (:max-points argmap) (* 10 limit)))
+		 (assoc :evalpush-limit (or (:evalpush-limit argmap) (* 10 limit)))
+		 (assoc :error-function error-fn)
+		 (assoc :atom-generators atom-generators))]
+    (println "size =" size)
+    (println "limit =" limit)
     (pushgp-map args))
   (System/exit 0))
