@@ -289,7 +289,8 @@ or false otherwise."
 ;	argmap (zipmap (map #(keyword (reduce str (drop 2 %))) (take-nth 2 args))
 ;		       (map read-string (take-nth 2 (drop 1 args))))
         atom-generators (concat
-                         (when (:use-tags argmap) (list (tag-instruction-erc [:exec]) (tagged-instruction-erc)))
+                         (when (:use-tagged argmap) (list (tagged-instruction-erc)))
+			 (when (:use-tag argmap) (list (tag-instruction-erc [:exec])))
 			 (when (:use-tagdo argmap) (list (tagdo-instruction-erc [:exec])))
 			 (when (and (:use-padding argmap) (not (:use-tags argmap))) (repeat 2 'exec_noop))    
 			 (list 'left 'right 'move 'if_food_ahead))

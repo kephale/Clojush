@@ -312,7 +312,8 @@ moves."
 			(= size 10) 125
 			(= size 12) 150))	
         atom-generators (concat
-                         (when (:use-tags argmap) (list (tag-instruction-erc [:exec]) (tagged-instruction-erc)))
+                         (when (:use-tagged argmap) (list (tagged-instruction-erc)))
+			 (when (:use-tag argmap) (list (tag-instruction-erc [:exec])))
 			 (when (:use-tagdo argmap) (list (tagdo-instruction-erc [:exec])))
 			 (when (and (:use-padding argmap) (not (:use-tags argmap))) (repeat 2 'exec_noop))    
 			 (list 'if-dirty 'if-obstacle 'left 'mop 'v8a 'frog
