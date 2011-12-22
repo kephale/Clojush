@@ -23,8 +23,6 @@
     [clojure.zip :as zip]
     [clojure.contrib.math :as math]
     [clojure.contrib.seq-utils :as seq-utils]
-    [clojure.contrib.duck-streams :as ds]
-    [clojure.contrib.io :as io]
     [clojure.walk :as walk]
     [clojure.contrib.string :as string]
     [local-file]))
@@ -34,9 +32,6 @@
 ;; backtrace abbreviation, to ease debugging
 (defn bt []
   (.printStackTrace *e))
-
-;;(def ^:dynamic *tag-file* nil)
-(def *tag-file* nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; globals
@@ -1616,11 +1611,18 @@ the following forms:
             the-tag (handle-indirection (read-string (nth iparts 4)) state)]
         (if (empty? (source-type state))
           state
-          ((if @global-pop-when-tagging pop-item (fn [type state] state))
-            source-type
-            (assoc state :tag (assoc (or (:tag state) (sorted-map))
-                                the-tag 
-                                (first (source-type state)))))))
+          (pop-item source-type	   
+		    (assoc state :tag (assoc (or (:tag state) (sorted-map))
+					the-tag 
+					(first (source-type state)))))))
+      (= (first iparts) "tagdo") 
+      (let [source-type (read-string (str ":" (nth iparts 2)))
+            the-tag (handle-indirection (read-string (nth iparts 4)) state)]
+        (if (empty? (source-type state))
+          state
+	  (assoc state :tag (assoc (or (:tag state) (sorted-map))
+			      the-tag 
+			      (first (source-type state))))))
       ;; if it's of the form untag_<number>: REMOVE TAG ASSOCIATION
       (= (first iparts) "untag")
       (if (empty? (:tag state))
@@ -1643,6 +1645,18 @@ tag_<type>_<number> where type is one of the specified types and number is in th
 from 0 to the global tag limit (exclusive)."
   [types]
   (fn [] (symbol (str "tag_"
+                   (name (lrand-nth types))
+                   "_"
+                   (str (if @global-use-indirect-tagging
+                          (- (lrand-int (* 2 @global-tag-limit)) @global-tag-limit)
+                          (lrand-int @global-tag-limit)))))))
+
+(defn tagdo-instruction-erc
+  "Returns a function which, when called on no arguments, returns a symbol of the form
+tagdo_<type>_<number> where type is one of the specified types and number is in the range 
+from 0 to the global tag limit (exclusive)."
+  [types]
+  (fn [] (symbol (str "tagdo_"
                    (name (lrand-nth types))
                    "_"
                    (str (if @global-use-indirect-tagging
@@ -1957,38 +1971,66 @@ by @global-node-selection-method."
       (printf "\nAverage program size in population (points): %s"
               (* 1.0 (/ (reduce + (map count-points (map :program sorted)))
                         (count population))))(flush)
+      (println "---")			
       (let [frequency-map (frequencies (map :program population))]
         (println "\nNumber of unique programs in population: " (count frequency-map))
         (println "Max copy number of one program: " (apply max (vals frequency-map)))
         (println "Min copy number of one program: " (apply min (vals frequency-map)))
         (println "Median copy number of one program: " (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
+      (println "---")			
       (let [frequency-map (frequencies (map :errors population))]
         (println "\nNumber of unique error vectors in population: " (count frequency-map))
         (println "Max copy number of one error vector: " (apply max (vals frequency-map)))
         (println "Min copy number of one error vector: " (apply min (vals frequency-map)))
-        (println "Median copy number of one error vector: " (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))      
-      (let [frequency-map (frequencies (mapcat :trace population))]
-	(println "\nNumber of unique tags in population: " (count frequency-map))
-	(println "Max copy number of one tag: " (when (vals frequency-map)
-						  (apply max (vals frequency-map))))
-	(println "Min copy number of one tag: " (when (vals frequency-map)
-						  (apply min (vals frequency-map))))
-	(println "Median copy number of one tag: " (when (vals frequency-map)
-						     (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2))))))
-      (let [records (->> (mapcat #(for [inst (:trace %1)]
-				    (with-meta inst (-> (meta inst)
-							(assoc :id %2)
-							(assoc :tag (count (filter (fn [i] (string/substring? "tag_" (str i))) (flatten (:program %1)))))
-							(assoc :tagged (count (filter (fn [i] (string/substring? "tagged_" (str i))) (flatten (:program %1))))))))
-				 population (iterate inc 0))
-			 (map #(list generation (:id (meta %)) % (:tag-ref (meta %))
-				     (not-lazy (:tagged-code (meta %)))
-				     (count-points (not-lazy (:tagged-code (meta %))))
-				     (:tag (meta %))(:tagged (meta %))))
-			 (frequencies))]
-	(doseq [record records]
-	  (ds/with-out-append-writer *tag-file*
-	    (println (apply str (interpose "," (concat (first record) (list (second record)))))))))
+        (println "Median copy number of one error vector: " (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
+      (println "---")
+      (let [all-tag-instructions (filter #(and (symbol? %) (.startsWith (name %) "tag_exec"))
+					 (apply concat ((if @global-use-single-thread map pmap)
+							(comp flatten-seqs ensure-list :program) population)))
+	    frequency-map (frequencies all-tag-instructions)]
+	(println "\nNumber of tag_exec instructions in population: " (apply + (vals frequency-map)))
+	(println "Number of unique tag_exec instructions in population: " (count frequency-map))
+	(println "Max copy number of one tag_exec instruction: " (when (vals frequency-map)
+								   (apply max (vals frequency-map))))
+	(println "Min copy number of one tag_exec instruction: " (when (vals frequency-map)
+								   (apply min (vals frequency-map))))
+	(println "Median copy number of one tag_exec instruction: " (when (vals frequency-map)
+								      (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
+	#_(println "tag_exec instruction counts:" (doall (for [k (range @global-tag-limit)]
+							 (let [inst (symbol (str "tag_exec_" k))]
+							   (if (get frequency-map inst) (get frequency-map inst) 0))))))
+      (println "---")
+      (let [all-tagdo-instructions (filter #(and (symbol? %) (.startsWith (name %) "tagdo_exec"))
+					 (apply concat ((if @global-use-single-thread map pmap)
+							(comp flatten-seqs ensure-list :program) population)))
+	    frequency-map (frequencies all-tagdo-instructions)]
+	(println "\nNumber of tagdo_exec instructions in population: " (apply + (vals frequency-map)))
+	(println "Number of unique tagdo_exec instructions in population: " (count frequency-map))
+	(println "Max copy number of one tagdo_exec instruction: " (when (vals frequency-map)
+								   (apply max (vals frequency-map))))
+	(println "Min copy number of one tagdo_exec instruction: " (when (vals frequency-map)
+								   (apply min (vals frequency-map))))
+	(println "Median copy number of one tagdo_exec instruction: " (when (vals frequency-map)
+								      (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
+	#_(println "tagdo_exec instruction counts:" (doall (for [k (range @global-tag-limit)]
+							 (let [inst (symbol (str "tag_exec_" k))]
+							   (if (get frequency-map inst) (get frequency-map inst) 0))))))
+      (println "---")
+      (let [all-tagged-instructions (filter #(and (symbol? %) (.startsWith (name %) "tagged_"))
+					    (apply concat ((if @global-use-single-thread map pmap)
+							   (comp flatten-seqs ensure-list :program) population)))
+	    frequency-map (frequencies all-tagged-instructions)]
+	(println "\nNumber of tagged instructions in population: " (apply + (vals frequency-map)))
+	(println "Number of unique tagged instructions in population: " (count frequency-map))
+	(println "Max copy number of one tagged instruction: " (when (vals frequency-map)
+								 (apply max (vals frequency-map))))
+	(println "Min copy number of one tagged instruction: " (when (vals frequency-map)
+								 (apply min (vals frequency-map))))
+	(println "Median copy number of one tagged instruction: " (when (vals frequency-map)
+								    (nth (sort (vals frequency-map)) (Math/floor (/ (count frequency-map) 2)))))
+	#_(println "tagged instruction counts:" (doall (for [k (range @global-tag-limit)]
+						       (let [inst (symbol (str "tagged_" k))]
+							 (if (get frequency-map inst) (get frequency-map inst) 0))))))
       (printf "\n;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\n")
       (flush)
       (problem-specific-report best population generation error-function report-simplifications)
@@ -2240,7 +2282,7 @@ example."
              evalpush-limit evalpush-time-limit node-selection-method node-selection-leaf-probability
              node-selection-tournament-size pop-when-tagging gaussian-mutation-probability 
              gaussian-mutation-per-number-mutation-probability gaussian-mutation-standard-deviation
-             	     reuse-errors problem-specific-report use-single-thread random-seed]
+	     reuse-errors problem-specific-report use-single-thread random-seed use-indirect-tagging tag-limit]
       :or {error-function (fn [p] '(0)) ;; pgm -> list of errors (1 per case)
            error-threshold 0
            population-size 1000
@@ -2413,8 +2455,5 @@ of nil values in execute-instruction, do see if any instructions are introducing
    This allows one to run an example with a call from the OS shell prompt like:
        lein run examples.simple-regression"
   [& args]
-  (binding [*tag-file* (io/file (str (first args) "_" (System/nanoTime)))]
-    (ds/with-out-append-writer *tag-file*
-      (println "generation,id,literal,ref.num,ref.code,ref.code.size,genotype.tag,genotype.tagged, frequency"))
-    (use (symbol (first args)))
-    (System/exit 0)))
+  (use (symbol (first args)))
+  (System/exit 0))
