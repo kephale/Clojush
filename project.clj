@@ -1,4 +1,4 @@
-(defproject clojush "0.0.1"
+(defproject clojush "1.0.3"
   :description "The Push programming language and the PushGP genetic programming system implemented in Clojure.
                 See http://hampshire.edu/lspector/push.html"
   :dev-dependencies [[swank-clojure "1.4.0-SNAPSHOT"]]  
