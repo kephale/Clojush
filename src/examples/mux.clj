@@ -194,11 +194,11 @@
 			   (drop-while #(not= (first %) \:) args)))
 ;	argmap (zipmap (map #(keyword (reduce str (drop 2 %))) (take-nth 2 args))
 ;		       (map read-string (take-nth 2 (drop 1 args))))
+	tag-instructions (concat (when (:use-tagged argmap) (list (tagged-instruction-erc)))
+				 (when (:use-tag argmap) (list (tag-instruction-erc [:exec])))
+				 (when (:use-tagdo argmap) (list (tagdo-instruction-erc [:exec]))))
         atom-generators (concat
-                         (when (:use-tagged argmap) (list (tagged-instruction-erc)))
-			 (when (:use-tag argmap) (list (tag-instruction-erc [:exec])))
-			 (when (:use-tagdo argmap) (list (tagdo-instruction-erc [:exec])))
-			 (when (and (:use-padding argmap) (not (:use-tags argmap))) (repeat 2 'exec_noop))    
+			 tag-instructions			 
 			 (when (:boolean-stack-manip argmap) '(boolean_dup boolean_swap boolean_pop boolean_rot))
                          '(exec_if boolean_and boolean_or boolean_not
 				   a0 a1; a2

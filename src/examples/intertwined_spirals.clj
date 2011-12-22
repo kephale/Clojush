@@ -133,11 +133,12 @@ Prediction is spiral-1 if the (top float) > 0 and spiral-2 if the (top float) <=
 			   (drop-while #(not= (first %) \:) args)))
 ;	argmap (zipmap (map #(keyword (reduce str (drop 2 %))) (take-nth 2 args))
 ;		       (map read-string (take-nth 2 (drop 1 args))))
+	tag-instructions (concat (when (:use-tagged argmap) (list (tagged-instruction-erc)))
+				 (when (:use-tag argmap) (list (tag-instruction-erc [:exec])))
+				 (when (:use-tagdo argmap) (list (tagdo-instruction-erc [:exec]))))
         atom-generators (concat
-                         (when (:use-tagged argmap) (list (tagged-instruction-erc)))
-			 (when (:use-tag argmap) (list (tag-instruction-erc [:exec])))
-			 (when (:use-tagdo argmap) (list (tagdo-instruction-erc [:exec])))
-			 (when (and (:use-padding argmap) (not (:use-tags argmap))) (repeat 2 'exec_noop))    
+			 tag-instructions
+			 (when (:use-padding argmap) (repeat (count tag-instructions) 'exec_noop))
 			 (:basic spiral-instructions))
 	args (-> argmap
 		 (assoc :mutation-probability (or (:mutation-probability argmap) 0.45))

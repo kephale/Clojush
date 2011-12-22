@@ -311,11 +311,12 @@ moves."
 			(= size 8) 100
 			(= size 10) 125
 			(= size 12) 150))	
+	tag-instructions (concat (when (:use-tagged argmap) (list (tagged-instruction-erc)))
+				 (when (:use-tag argmap) (list (tag-instruction-erc [:exec])))
+				 (when (:use-tagdo argmap) (list (tagdo-instruction-erc [:exec]))))
         atom-generators (concat
-                         (when (:use-tagged argmap) (list (tagged-instruction-erc)))
-			 (when (:use-tag argmap) (list (tag-instruction-erc [:exec])))
-			 (when (:use-tagdo argmap) (list (tagdo-instruction-erc [:exec])))
-			 (when (and (:use-padding argmap) (not (:use-tags argmap))) (repeat 2 'exec_noop))    
+			 tag-instructions
+			 (when (:use-padding argmap) (repeat (count tag-instructions) 'exec_noop))
 			 (list 'if-dirty 'if-obstacle 'left 'mop 'v8a 'frog
 			       (fn [] [(lrand-int 8) (lrand-int size)])))
 	error-fn (mopper-fitness 8 size limit)
