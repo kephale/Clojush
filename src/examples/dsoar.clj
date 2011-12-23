@@ -230,7 +230,7 @@
       (if-dirty-in state)
       state)))
 
-(defn mopper-fitness
+#_(defn mopper-fitness
   "Returns a fitness function for the dsoar problem with a floor of the
 specified size (x and y) and the specified limit on numbers of turns and
 moves."
@@ -247,6 +247,22 @@ moves."
 				  (:trace push-state)])))]
       (with-meta (doall (map first error-trace-pairs))
 	{:trace (doall (mapcat second error-trace-pairs))}))))
+
+(defn mopper-fitness
+  "Returns a fitness function for the dsoar problem with a floor of the
+specified size (x and y) and the specified limit on numbers of turns and
+moves."
+  [x y limit]
+  (fn [program]
+    (let [num-obs-per-set (count (first (obstacles y)))
+	  errors (doall
+		  (for [i '(0 1)]
+		    (let [push-state (run-push program
+					       (push-item (new-floor-state x y limit i)
+							  :auxiliary (make-push-state))
+					       false :tag)] ;true
+		      (- (* x y) num-obs-per-set (count (:mopped (first (:auxiliary push-state))))))))]
+      errors)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; code for actual runs
