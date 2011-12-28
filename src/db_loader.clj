@@ -1,4 +1,7 @@
 (ns db_loader
+  "db_loader usage: lein run -m db_loader :filename ~/log_file_location/some_output_file.log :problemname problem
+The :problemname argument is optional; it's used to look up and track semantically grouped problems (e.g. all dsoar problems).
+Settings are held in the ~/.db_config file. If you do not already have one, one will be created."
   (:import [java.io File RandomAccessFile]
 	   [java.text SimpleDateFormat FieldPosition]
 	   [java.util Date])
@@ -16,7 +19,7 @@
 (def user (atom nil))
 (def data_dir (atom nil))
 (def problem_data (atom nil)) ;; hashmap of problem names to ids
-(def experiments [:id :user :rundate :problem_name :problem_id :clojush_version])
+(def experiments [:id :user :rundate :problem_name :problem_id :clojush_version :logfile_location])
 (def experiment [:id :parameter :value])
 (def generations [:id :gennum :parameter :value])
 (def summary [:id :successp :maxgen])
@@ -53,7 +56,8 @@
 	     (str problemname)
 	     (str (or (get @problem_data problemname)
 		      (get (swap! problem_data assoc problemname (inc (apply max (vals @problem_data)))) problemname)))
-	     (str (second (su/find-first #(= (first %) "Clojush version") experiment-data))))))
+	     (str (second (su/find-first #(= (first %) "Clojush version") experiment-data)) ",")
+	     (str filename))))
 
 (defn write-experiment [filename experiment-data]
   (ds/with-out-append-writer
