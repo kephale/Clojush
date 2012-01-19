@@ -1,6 +1,7 @@
 (ns examples.grammar
   (:require [clojush :exclude '-main]
-	    [clojure.string :as string])
+	    [clojure.string :as string]
+	    [clojure.contrib.math :as math])
   (:use [clojush :exclude '-main]))
 
 (defn get-stack-instructions [instlist stack]
@@ -30,31 +31,34 @@
 (def language-7 '(("1" "0" "10" "01" "11111" "000" "00110011" "0101" "0000100001111" "00100" "011111011111" "00")
 		  ("1010" "00110011000" "0101010101" "1011010" "10101" "010100" "101001" "100100110101")))     
 
-(defn grammar-fitness [examples output]
+(defn populate-stack [tokens stack state]
+  (if (empty? tokens)
+    state
+    (recur (rest tokens)
+	   stack
+	   (push-item (first tokens) stack state))))
+  
+(defn grammar-eval [examples output]
   (fn [program]
     (loop [err (transient [])
 	   ex examples
 	   ans output]
       (if (empty? ex)
 	(reduce + (persistent! err))
-	(recur (conj! err (if (= (top-item :boolean
-					   (run-push program
-						     (loop [tokens (reverse (map str (first ex)))
-							    state (make-push-state)]
-						       (if (empty? tokens)
-							 state
-							 (recur (rest tokens)
-								(push-item (first tokens) :string state))))))
+	(recur (conj! err (if (= (top-item :boolean (run-push program
+							      (populate-stack (reverse (map str (first ex)))
+									      :string
+									      (make-push-state))))
 				 (first ans))
 			    0 1))
 	       (rest ex)
 	       (rest ans))))))
 
-(define-registered accept-reject
-  (fn [state]
-    (push-item (and (= (pop-item :boolean state) true)
-		    (empty? (:string state)))
-	       :boolean state)))
+;; (define-registered accept-reject
+;;   (fn [state]
+;;     (push-item (and (= (pop-item :boolean state) true)
+;; 		    (empty? (:string state)))
+;; 	       :boolean state)))
 
 (define-registered is-one
   (fn [state]
@@ -64,26 +68,26 @@
   (fn [state]
     (push-item (= "0" (top-item :string state)) :boolean state)))
 
-(define-registered more-input?
-  (fn [state]
-    (push-item (empty? (:string state)) :boolean state)))
+;; (define-registered more-input?
+;;   (fn [state]
+;;     (push-item (empty? (:string state)) :boolean state)))
 
 (defn -main [& args]
   (let [argmap (apply hash-map
 		    (map read-string
 			 (drop-while #(not= (first %) \:) args)))
-	atom-generators '(accept-reject is-one is-zero more-input?
-					string_eq string_dup string_pop
-					exec_y exec_k exec_pop exec_if)
+	atom-generators '(is-one is-zero
+				 string_eq string_dup string_pop
+				 exec_y exec_k exec_pop exec_if)
 	error-fn (fn [program]
 		   (list
-		    (let [pos ((grammar-fitness (first (deref (ns-resolve 'examples.grammar (:language argmap))))
-						(repeat true)) program)
-			  neg ((grammar-fitness (second (deref (ns-resolve 'examples.grammar (:language argmap))))
-						(repeat false)) program)]
-		      (if (or (= pos 0) (= neg 0))
-			100
-			(+ pos neg)))))]
+		    (let [pos ((grammar-eval (first (deref (ns-resolve 'examples.grammar (:language argmap))))
+					     (repeat true))
+			       program)
+			  neg ((grammar-eval (second (deref (ns-resolve 'examples.grammar (:language argmap))))
+					     (repeat false))
+			       program)]
+		      (+ pos neg (math/expt (- pos neg) 2)))))]
     (pushgp-map (-> argmap
 		    (assoc :atom-generators (if (:use-tags argmap)
 					      (conj atom-generators
