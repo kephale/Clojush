@@ -72,6 +72,25 @@
   (fn [state]
     (push-item (not= (top-item :string state) :no-stack-item) :boolean state)))
 
+(defn random-search [control atom-generators error-fn]
+  (let [max-evals (:max-evals control (* 1000 1000))
+	max-points (:max-points control 50)]
+    (println "search-method = random")
+    (println 'max-evals "=" max-evals)
+    (println 'max-points "=" max-points)
+    (newline)
+    (loop [gen 0]
+      (let [program (random-code max-points atom-generators)
+	    fitness (first (error-fn program))]
+	(println "Generation:" gen)
+	(println "Program:" program)
+	(println "Total:" fitness)
+	(when (and (> fitness 0) (< gen max-evals))
+	  (recur (inc gen)))))))
+	
+	
+	
+
 (defn -main [& args]
   (let [argmap (apply hash-map
 		    (map read-string
@@ -88,11 +107,13 @@
 					     (repeat false))
 			       program)]
 		      (+ pos neg (math/expt (- pos neg) 2)))))]
-    (pushgp-map (-> argmap
-		    (assoc :atom-generators (if (:use-tags argmap)
-					      (conj atom-generators
-						    (tagged-instruction-erc)
-						    (tag-instruction-erc [:exec]))
-					      (conj atom-generators 'exec_noop 'exec_noop)))
-		    (assoc :error-function error-fn))))		    
+    (if (:control argmap) 
+      (random-search (:control argmap) atom-generators error-fn)
+      (pushgp-map (-> argmap
+		      (assoc :atom-generators (if (:use-tags argmap)
+						(conj atom-generators
+						      (tagged-instruction-erc)
+						      (tag-instruction-erc [:exec]))
+						(conj atom-generators 'exec_noop 'exec_noop)))
+		      (assoc :error-function error-fn)))))
   (System/exit 0))
