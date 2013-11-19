@@ -1,4 +1,8 @@
 *~
+<<<<<<< HEAD
+classes/*
+/bin
+=======
 .DS_Store
 .lein-deps-sum
 .lein-repl-history
@@ -13,3 +17,4 @@ results/
 data/
 logs/
 lib/
+>>>>>>> refs/remotes/origin/master

@@ -236,10 +236,14 @@
            trivial-geography-radius use-single-thread ]}]
   (let [pop (if (>= decimation-ratio 1)
               (vec (doall (map deref pop-agents)))
-              (decimate (vec (doall (map deref pop-agents)))
-                        (int (* decimation-ratio population-size))
-                        decimation-tournament-size
-                        trivial-geography-radius))]
+              (pareto-decimate (vec (doall (map deref pop-agents)))
+                         (int (* decimation-ratio population-size))
+                         decimation-tournament-size
+                         trivial-geography-radius)
+              #_(decimate (vec (doall (map deref pop-agents)))
+                         (int (* decimation-ratio population-size))
+                         decimation-tournament-size
+                         trivial-geography-radius))]
     (dotimes [i population-size]
       ((if use-single-thread swap! send)
            (nth child-agents i) 
@@ -288,7 +292,7 @@
       (reset-globals)
       (initial-report) ;; Print the inital report
       (print-params @push-argmap)
-      (check-genetic-operator-probabilities-add-to-one @push-argmap)
+      #_(check-genetic-operator-probabilities-add-to-one @push-argmap)
       (timer @push-argmap :initialization)
       (println "Generating initial population...")
       (let [{:keys [pop-agents child-agents rand-gens random-seeds]} (make-agents-and-rng @push-argmap)]

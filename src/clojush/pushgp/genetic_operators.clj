@@ -9,36 +9,69 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; genetic operators
 
+#_(defn mutate 
+   "Returns a mutated version of the given individual."
+   [ind {:keys [mutation-max-points max-points atom-generators maintain-ancestors]
+         :as argmap}]
+   (let [new-program (insert-code-at-point (:program ind) 
+                                           (select-node-index (:program ind) argmap)
+                                           (random-code mutation-max-points atom-generators))]
+     (if (> (count-points new-program) max-points)
+       ind
+       (make-individual :program new-program :history (:history ind)
+                        :ancestors (if maintain-ancestors
+                                     (cons (:program ind) (:ancestors ind))
+                                     (:ancestors ind))))))
+
 (defn mutate 
-  "Returns a mutated version of the given individual."
-  [ind {:keys [mutation-max-points max-points atom-generators maintain-ancestors]
-        :as argmap}]
-  (let [new-program (insert-code-at-point (:program ind) 
-                                          (select-node-index (:program ind) argmap)
-                                          (random-code mutation-max-points atom-generators))]
-    (if (> (count-points new-program) max-points)
-      ind
-      (make-individual :program new-program :history (:history ind)
-                       :ancestors (if maintain-ancestors
-                                    (cons (:program ind) (:ancestors ind))
-                                    (:ancestors ind))))))
+   "Returns a mutated version of the given individual."
+   [ind {:keys [mutation-max-points max-points atom-generators maintain-ancestors]
+         :as argmap}]
+   (loop [new-program (:program ind)]
+     (if (or (> (count-points new-program) max-points) (= new-program (:program ind)))
+       (let [new-program (insert-code-at-point (:program ind) 
+                                               (select-node-index (:program ind) argmap)
+                                               (random-code mutation-max-points atom-generators))]
+         (recur new-program))
+       (make-individual :program new-program :history (:history ind)
+                        :ancestors (if maintain-ancestors
+                                     (cons (:program ind) (:ancestors ind))
+                                     (:ancestors ind))))))
+
+#_(defn crossover 
+   "Returns a copy of parent1 with a random subprogram replaced with a random 
+   subprogram of parent2."
+   [parent1 parent2 {:keys [max-points maintain-ancestors]
+                     :as argmap}]
+   (let [new-program (insert-code-at-point 
+                       (:program parent1) 
+                       (select-node-index (:program parent1) argmap)
+                       (code-at-point (:program parent2)
+                                      (select-node-index (:program parent2) argmap)))]
+     (if (> (count-points new-program) max-points)
+       parent1
+       (make-individual :program new-program :history (:history parent1)
+                        :ancestors (if maintain-ancestors
+                                     (cons (:program parent1) (:ancestors parent1))
+                                     (:ancestors parent1))))))
 
 (defn crossover 
-  "Returns a copy of parent1 with a random subprogram replaced with a random 
+   "Returns a copy of parent1 with a random subprogram replaced with a random 
    subprogram of parent2."
-  [parent1 parent2 {:keys [max-points maintain-ancestors]
-                    :as argmap}]
-  (let [new-program (insert-code-at-point 
-                      (:program parent1) 
-                      (select-node-index (:program parent1) argmap)
-                      (code-at-point (:program parent2)
-                                     (select-node-index (:program parent2) argmap)))]
-    (if (> (count-points new-program) max-points)
-      parent1
-      (make-individual :program new-program :history (:history parent1)
-                       :ancestors (if maintain-ancestors
-                                    (cons (:program parent1) (:ancestors parent1))
-                                    (:ancestors parent1))))))
+   [parent1 parent2 {:keys [max-points maintain-ancestors]
+                     :as argmap}]
+   (loop [new-program (:program parent1)]
+     (if (or (> (count-points new-program) max-points) (= new-progrm (:program parent1)) (= new-progrm (:program parent2)))
+       (let [new-program (insert-code-at-point 
+                           (:program parent1) 
+                           (select-node-index (:program parent1) argmap)
+                           (code-at-point (:program parent2)
+                                          (select-node-index (:program parent2) argmap)))]
+         (recur new-program))
+       (make-individual :program new-program :history (:history parent1)
+                        :ancestors (if maintain-ancestors
+                                     (cons (:program parent1) (:ancestors parent1))
+                                     (:ancestors parent1))))))
 
 (defn boolean-gsxover 
   "Returns a child produced from parent1 and parent2 using boolean geometric
