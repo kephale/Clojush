@@ -61,7 +61,7 @@
    [parent1 parent2 {:keys [max-points maintain-ancestors]
                      :as argmap}]
    (loop [new-program (:program parent1)]
-     (if (or (> (count-points new-program) max-points) (= new-progrm (:program parent1)) (= new-progrm (:program parent2)))
+     (if (or (> (count-points new-program) max-points) (= new-program (:program parent1)) (= new-program (:program parent2)))
        (let [new-program (insert-code-at-point 
                            (:program parent1) 
                            (select-node-index (:program parent1) argmap)
